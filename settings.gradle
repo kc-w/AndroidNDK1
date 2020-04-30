@@ -1,0 +1,2 @@
+rootProject.name='AndroidNDK1'
+include ':app'
