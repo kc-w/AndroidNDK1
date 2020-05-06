@@ -12,6 +12,7 @@ import android.widget.TextView;
 
 import java.io.FileDescriptor;
 import java.io.IOException;
+import java.util.ArrayList;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -31,9 +32,9 @@ public class MainActivity extends AppCompatActivity {
             if (msg.what == 1) {
                 //更新ui
                 Bundle bundle = msg.getData();
-                String date=bundle.getString("msg");
+                ArrayList date=(ArrayList)bundle.get("Data");
 
-                textView.setText(date);
+                textView.setText(date.toString());
             }
 
         }
@@ -136,7 +137,7 @@ public class MainActivity extends AppCompatActivity {
                     e.printStackTrace();
                 }
 
-//                serialPortUtil.sendSerialPort("0205001603");
+                serialPortUtil.sendSerialPort("0205001603");
 
 
             }

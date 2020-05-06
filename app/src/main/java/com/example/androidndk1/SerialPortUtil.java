@@ -10,8 +10,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
-import java.util.List;
-
 
 
 //通过串口用于接收或发送数据
@@ -121,12 +119,26 @@ public class SerialPortUtil {
     }
 
 
-    Bundle bundle = new Bundle();
-    //包存放数组
-    byte[] readData = new byte[1];
-    //byte数组
-    List<Byte> TempData = new ArrayList();
 
+    Bundle bundle = new Bundle();
+    //第一个包判断
+    Boolean flag = true;
+    //首字节判断
+    Boolean flag1 = true;
+    //首字节通过标识
+    Boolean flag2 = false;
+    //包长度标识
+    int len=0;
+    //总包长度
+    int AllLen ;
+
+    //包存放数组
+    byte[] readData = new byte[1024];
+
+    //包存放数组
+    byte[] tempData = new byte[1024];
+    //byte数组
+    ArrayList<Byte> SendData = new ArrayList();
 
 
     //接收数据的线程类
@@ -137,6 +149,7 @@ public class SerialPortUtil {
             super.run();
             //如果串口开启成功，则执行这个线程
             while (isStart) {
+
                 if (inputStream == null ) {
                     return;
                 }
@@ -146,39 +159,145 @@ public class SerialPortUtil {
 
                     if (size > 0) {
 
-                        for (Byte bytes:readData){
-                            TempData.add(bytes);
-                        }
+                        checkFull(size,readData);
 
 
 
 
 
-//                        String readString = DataUtils.ByteArrToHex(readData, 0, size);
-//                        //020600110D03
-//                        Log.e(getClass().getSimpleName()+"收到串口数据字节数据转换为十六进制:", readString);
+
+                        String readString = DataUtils.ByteArrToHex(readData, 0, size);
+                        //020600110D03
+                        Log.e(getClass().getSimpleName()+"收到串口数据字节数据转换为十六进制:", readString);
 
 
 
                     }
-                } catch (IOException e) {
+                } catch (IOException | InterruptedException e) {
                     e.printStackTrace();
                 }
             }
-
         }
     }
 
-    public void message(int i,String date){
+    public void checkFull(int size,byte[] readData) throws InterruptedException {
 
-        bundle.putString("msg", date);
+
+        //包长
+        len = len+size;
+
+        for(int i =0;i<size;i++){
+            //第一个包
+            if(flag){
+
+                //过滤掉干扰字节,接收到第一个字节
+                if(readData[i] ==2 && flag1){
+                    len = len-i;
+                    //连接数据
+                    SendData.add(readData[i]);
+                    //得到总包字节长度
+                    AllLen = DataUtils.HLtoInt(readData[i+2],readData[i+1]);
+                    //首字节标识
+                    flag1=false;
+                    //首字节通过标识
+                    flag2=true;
+                    //首字节判断通过后直接跳过本次循环
+                    continue;
+                }
+
+                //第一个完整包判断
+                if (AllLen==len-(size-i)+1){
+
+                    if(readData[i]==3){
+                        //只有一个包
+                        SendData.add(readData[i]);
+                        message("Data", SendData);
+                        Thread.sleep(1000);
+                        initialize();
+
+                        //如果末尾还有包
+                        if (size>i+1){
+                            int x = 0;
+                            for (int j=i+1;j<=size;j++){
+                                tempData[x]=readData[j];
+                                x++;
+                            }
+                            checkFull(x+1,tempData);
+                        }else {
+                            continue;
+                        }
+                    }
+
+                }
+
+                //02开头得到确认后开始加入数据
+                if (flag2){
+                    SendData.add(readData[i]);
+                }
+
+                //标识第一个包结束,还有其他包
+                if (AllLen>len){
+                    flag =false;
+                }
+
+            }else {
+
+                //一个完整的数据包
+                if (AllLen==len-(size-i)+1){
+
+                    //包尾数据为3的话
+                    if(readData[i]==3){
+
+                        SendData.add(readData[i]);
+                        message("Data", SendData);
+                        Thread.sleep(1000);
+                        initialize();
+
+
+                        if (size>i+1){
+                            int x = 0;
+                            for (int j=i+1;j<=size;j++){
+                                tempData[x]=readData[j];
+                                x++;
+                            }
+                            checkFull(x+1,tempData);
+                        }
+
+                    }
+
+                }
+
+                SendData.add(readData[i]);
+
+            }
+
+
+        }
+
+    }
+
+    //发送数据
+    public void message(String mesage,ArrayList tempData){
+        bundle.putCharSequenceArrayList(mesage,tempData);
         Message message = Message.obtain();
         message.setData(bundle);
-        message.what =i ;
+        message.what =1 ;
         handler.sendMessage(message);
     }
 
-
+    //初始化数据
+    public void initialize(){
+        //清空数据
+        SendData.clear();
+        //第一个包判断
+        flag = true;
+        //首字节判断
+        flag1 = true;
+        //首字节通过标识
+        flag2 = false;
+        //包长度标识
+        len=0;
+    }
 
 
     public static void test(Handler handler1){

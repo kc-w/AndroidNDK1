@@ -132,7 +132,7 @@ public class DataUtils {
         return b;
     }
     //高低位2字节转换成整数(高位,低位)
-    public static int test(int a,int b){
+    public static int HLtoInt(int a,int b){
 
         int value= (a<< 8) | (b & 0xFF);
 
