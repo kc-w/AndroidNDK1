@@ -137,7 +137,7 @@ public class MainActivity extends AppCompatActivity {
                     e.printStackTrace();
                 }
 
-                serialPortUtil.sendSerialPort("0205001603");
+//                serialPortUtil.sendSerialPort("0205001603");
 
 
             }

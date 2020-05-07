@@ -11,6 +11,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
 
+import static android.content.ContentValues.TAG;
+
 
 //通过串口用于接收或发送数据
 public class SerialPortUtil {
@@ -24,6 +26,9 @@ public class SerialPortUtil {
     private OutputStream outputStream = null;
     //接收数据线程
     private ReceiveThread mReceiveThread = null;
+    //发送数据线程
+    private SendThread mSendThread = null;
+    private SendThread mData_class = null;
     //串口开启标识
     private boolean isStart = false;
 
@@ -51,7 +56,11 @@ public class SerialPortUtil {
         if (mReceiveThread == null) {
             mReceiveThread = new ReceiveThread();
         }
+        if (mSendThread == null) {
+            mSendThread = new SendThread();
+        }
         mReceiveThread.start();
+        mSendThread.start();
     }
 
     /**
@@ -121,160 +130,169 @@ public class SerialPortUtil {
 
 
     Bundle bundle = new Bundle();
-    //第一个包判断
-    Boolean flag = true;
-    //首字节判断
-    Boolean flag1 = true;
-    //首字节通过标识
-    Boolean flag2 = false;
-    //包长度标识
-    int len=0;
-    //总包长度
-    int AllLen ;
 
     //包存放数组
     byte[] readData = new byte[1024];
 
-    //包存放数组
-    byte[] tempData = new byte[1024];
     //byte数组
     ArrayList<Byte> SendData = new ArrayList();
 
 
+
+
     //接收数据的线程类
     private class ReceiveThread extends Thread {
+
+        private boolean wp=false;
+        //创建synchronized关键字对象
+        private Object obj=new Object();
+        public void blocked() {
+            wp=true;
+            //obj.wait();如果wait()方法写在这相当于主线程调用wait()方法而不是子线程
+        }
+        public void wakeup() {
+            wp=false;
+            synchronized(obj) {
+                obj.notifyAll();
+            }
+        }
+
         @Override
         public void run() {
 
-            super.run();
             //如果串口开启成功，则执行这个线程
             while (isStart) {
+
+                if(wp) {
+                    try {
+                        //notifyAll和wait语句一定要编写在synchronized(){}块中
+                        synchronized(obj) {
+                            obj.wait();//子线程调用wait()
+                        }
+                    } catch (InterruptedException e) {
+                        return;
+                    }
+                }
 
                 if (inputStream == null ) {
                     return;
                 }
+
+                int size = 0;
+
                 try {
 
-                    int size = inputStream.read(readData);
+                    Log.e(TAG, "锁住效验数据线程");
+                    mSendThread.blocked();
 
+                    size = inputStream.read(readData);
                     if (size > 0) {
 
-                        checkFull(size,readData);
+                        for (int i=0;i<size;i++){
+                            SendData.add(readData[i]);
+                        }
 
-
-
-
-
-
-                        String readString = DataUtils.ByteArrToHex(readData, 0, size);
-                        //020600110D03
-                        Log.e(getClass().getSimpleName()+"收到串口数据字节数据转换为十六进制:", readString);
-
-
+                        Log.e(TAG, SendData.toString());
+                        Log.e(TAG, "解锁效验数据线程");
+                        mSendThread.wakeup();
 
                     }
-                } catch (IOException | InterruptedException e) {
+                } catch (IOException e) {
                     e.printStackTrace();
                 }
+
             }
         }
     }
 
-    public void checkFull(int size,byte[] readData) throws InterruptedException {
+    ArrayList<Byte> data=new ArrayList();
+    int AllLen=0;
 
 
-        //包长
-        len = len+size;
+    private class SendThread extends Thread {
 
-        for(int i =0;i<size;i++){
-            //第一个包
-            if(flag){
 
-                //过滤掉干扰字节,接收到第一个字节
-                if(readData[i] ==2 && flag1){
-                    len = len-i;
-                    //连接数据
-                    SendData.add(readData[i]);
-                    //得到总包字节长度
-                    AllLen = DataUtils.HLtoInt(readData[i+2],readData[i+1]);
-                    //首字节标识
-                    flag1=false;
-                    //首字节通过标识
-                    flag2=true;
-                    //首字节判断通过后直接跳过本次循环
-                    continue;
-                }
+        private boolean wp=false;
+        //创建synchronized关键字对象
+        private Object obj=new Object();
+        public void blocked() {
+            wp=true;
+            //obj.wait();如果wait()方法写在这相当于主线程调用wait()方法而不是子线程
+        }
+        public void wakeup() {
+            wp=false;
+            synchronized(obj) {
+                obj.notifyAll();
+            }
+        }
 
-                //第一个完整包判断
-                if (AllLen==len-(size-i)+1){
+        @Override
+        public void run() {
 
-                    if(readData[i]==3){
-                        //只有一个包
-                        SendData.add(readData[i]);
-                        message("Data", SendData);
-                        Thread.sleep(1000);
-                        initialize();
+            while (isStart){
 
-                        //如果末尾还有包
-                        if (size>i+1){
-                            int x = 0;
-                            for (int j=i+1;j<=size;j++){
-                                tempData[x]=readData[j];
-                                x++;
-                            }
-                            checkFull(x+1,tempData);
-                        }else {
-                            continue;
+                if(wp) {
+                    try {
+                        //notifyAll和wait语句一定要编写在synchronized(){}块中
+                        synchronized(obj) {
+                            obj.wait();//子线程调用wait()
                         }
+                    } catch (InterruptedException e) {
+                        return;
                     }
-
                 }
 
-                //02开头得到确认后开始加入数据
-                if (flag2){
-                    SendData.add(readData[i]);
+                Log.e(TAG, "锁住接收数据线程");
+                mReceiveThread.blocked();
+
+                try {
+                    Thread.sleep(2000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
                 }
 
-                //标识第一个包结束,还有其他包
-                if (AllLen>len){
-                    flag =false;
-                }
+                int size=SendData.size();
+                boolean flag = true;
 
-            }else {
+                if(SendData.size()>0){
 
-                //一个完整的数据包
-                if (AllLen==len-(size-i)+1){
+                    for (int i=0;i<size;i++){
 
-                    //包尾数据为3的话
-                    if(readData[i]==3){
+                        //第一个
+                        if (SendData.get(i) ==2 && flag){
+                            data.add(SendData.get(i));
+                            AllLen=DataUtils.HLtoInt(SendData.get(i+2),SendData.get(i+1));
+                            flag=false;
+                        }
+                        if (!flag){
+                            data.add(SendData.get(i));
+                            if (i+1==AllLen){
 
-                        SendData.add(readData[i]);
-                        message("Data", SendData);
-                        Thread.sleep(1000);
-                        initialize();
-
-
-                        if (size>i+1){
-                            int x = 0;
-                            for (int j=i+1;j<=size;j++){
-                                tempData[x]=readData[j];
-                                x++;
+                                for (int j=0;j<i+1;j++){
+                                    SendData.remove(0);
+                                }
+                                message("Data",data);
+                                data.clear();
                             }
-                            checkFull(x+1,tempData);
+
+
+                        }
+
+                        if (i==size-1){
+                            Log.e(TAG, "解锁接收数据线程");
+                            mReceiveThread.wakeup();
                         }
 
                     }
-
                 }
-
-                SendData.add(readData[i]);
 
             }
 
 
         }
-
     }
+
+
 
     //发送数据
     public void message(String mesage,ArrayList tempData){
@@ -285,19 +303,7 @@ public class SerialPortUtil {
         handler.sendMessage(message);
     }
 
-    //初始化数据
-    public void initialize(){
-        //清空数据
-        SendData.clear();
-        //第一个包判断
-        flag = true;
-        //首字节判断
-        flag1 = true;
-        //首字节通过标识
-        flag2 = false;
-        //包长度标识
-        len=0;
-    }
+
 
 
     public static void test(Handler handler1){
