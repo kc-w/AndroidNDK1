@@ -123,16 +123,14 @@ public class SerialPortUtil {
 
     Bundle bundle = new Bundle();
 
-    //包存放数组
+    //存放缓冲区读取到的数据
     byte[] readData = new byte[1024];
-
+    //需要发送的数据
     ArrayList<Byte> data=new ArrayList();
-    Object o = new Object();
-    Boolean f = true ; // True 时线程1执行
 
 
     public class Data_class {
-
+        //存放缓冲区的数据
         ArrayList<Byte> SendData = new ArrayList();
 
         public  ArrayList<Byte> getSendData() {
@@ -154,7 +152,7 @@ public class SerialPortUtil {
         }
 
     }
-
+    int i=0;
 
     //接收数据的线程类
     private class ReceiveThread extends Thread {
@@ -176,13 +174,11 @@ public class SerialPortUtil {
                         return;
                     }
                     try {
+                        //如果缓冲区无数据则会卡在此处
                         int size = inputStream.read(readData);
-                        if (size > 0) {
-                            data_class.add(size,readData);
-                            isStart=false;
-                        }else {
-                            data.clear();
-                        }
+                        data_class.add(size,readData);
+                        isStart=false;
+
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
@@ -227,17 +223,21 @@ public class SerialPortUtil {
                                 data.add(sendDate.get(i));
                                 //累加长度达到标准正确长度
                                 if (data.size()==AllLen){
-                                    message("Data",data);
-                                    try {
-                                        Thread.sleep(1000);
-                                    } catch (InterruptedException e) {
-                                        e.printStackTrace();
+
+                                    if(sendDate.get(i)==3){
+                                        message("Data",data);
+                                        try {
+                                            Thread.sleep(1000);
+                                        } catch (InterruptedException e) {
+                                            e.printStackTrace();
+                                        }
+                                        data.clear();
+                                        data_class.subtract(i);
+                                        flag=true;
+                                        isStart=true;
+                                        continue;
                                     }
-                                    data.clear();
-                                    data_class.subtract(i);
-                                    flag=true;
-                                    isStart=true;
-                                    continue;
+
                                 }
 
                                 //有多个数据包且循环到最后一个数据时清除接收到的数据重新从缓冲区读取数据
