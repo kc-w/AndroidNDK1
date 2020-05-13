@@ -5,11 +5,13 @@ import androidx.appcompat.app.AppCompatActivity;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
+import android.os.SystemClock;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 
+import java.io.DataOutputStream;
 import java.io.FileDescriptor;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -17,6 +19,9 @@ import java.util.ArrayList;
 public class MainActivity extends AppCompatActivity {
 
     private Boolean flag =true;
+
+
+
 
 
     //串口操作对象
@@ -53,7 +58,7 @@ public class MainActivity extends AppCompatActivity {
 
 
 
-
+        setDate();
 
 
 
@@ -158,6 +163,11 @@ public class MainActivity extends AppCompatActivity {
         });
 
 
+    }
+
+    public void setDate(){
+        Log.d("TAG", String.valueOf(SystemClock.currentThreadTimeMillis()));
+//        SystemClock.setCurrentTimeMillis();
     }
 
 
